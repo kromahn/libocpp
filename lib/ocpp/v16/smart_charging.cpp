@@ -87,9 +87,6 @@ bool validate_schedule(const ChargingSchedule& schedule, const int charging_sche
             (period.numberPhases.value() <= 0 or period.numberPhases.value() > DEFAULT_AND_MAX_NUMBER_PHASES)) {
             EVLOG_warning << "INVALID SCHEDULE - Invalid number of phases: " << period.numberPhases.value();
             return false;
-        } else if (period.limit < 0) {
-            EVLOG_warning << "INVALID SCHEDULE - Invalid limit: " << period.limit;
-            return false;
         }
     }
     return true;
