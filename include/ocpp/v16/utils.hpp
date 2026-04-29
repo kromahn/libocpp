@@ -21,6 +21,12 @@ void drop_transaction_data(size_t max_message_size, ocpp::Call<StopTransactionRe
 /// \brief Determines if a given \p security_event is critical as defined in the OCPP 1.6 security whitepaper
 bool is_critical(const std::string& security_event);
 
+/// \brief Converts signed active power into OCPP 1.6 Power.Active.Import (always >= 0)
+double get_power_active_import_w(double signed_power_w);
+
+/// \brief Converts signed active power into OCPP 1.6 Power.Active.Export (always >= 0)
+double get_power_active_export_w(double signed_power_w);
+
 } // namespace utils
 } // namespace v16
 } // namespace ocpp

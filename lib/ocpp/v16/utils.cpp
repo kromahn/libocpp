@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
+#include <algorithm>
+
 #include <ocpp/common/utils.hpp>
 #include <ocpp/v16/utils.hpp>
 
@@ -39,6 +41,14 @@ bool is_critical(const std::string& security_event) {
     }
 
     return false;
+}
+
+double get_power_active_import_w(double signed_power_w) {
+    return std::max(signed_power_w, 0.0);
+}
+
+double get_power_active_export_w(double signed_power_w) {
+    return std::max(-signed_power_w, 0.0);
 }
 
 } // namespace utils

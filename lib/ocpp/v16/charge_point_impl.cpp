@@ -606,6 +606,27 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
                 EVLOG_debug << "  there is a phase configured: "
                             << conversions::phase_to_string(configured_measurand.phase.value());
             }
+            const auto get_power_w_for_phase = [](const Power& power, const Phase phase) -> std::optional<double> {
+                if (phase == Phase::L1) {
+                    if (power.L1.has_value()) {
+                        return static_cast<double>(power.L1.value());
+                    }
+                    return std::nullopt;
+                }
+                if (phase == Phase::L2) {
+                    if (power.L2.has_value()) {
+                        return static_cast<double>(power.L2.value());
+                    }
+                    return std::nullopt;
+                }
+                if (phase == Phase::L3) {
+                    if (power.L3.has_value()) {
+                        return static_cast<double>(power.L3.value());
+                    }
+                    return std::nullopt;
+                }
+                return std::nullopt;
+            };
             switch (configured_measurand.measurand) {
             case Measurand::Energy_Active_Import_Register: {
                 const auto energy_Wh_import = power_meter.energy_Wh_import;
@@ -698,31 +719,45 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
                 sample.location.emplace(Location::Outlet);
                 if (power_W) {
                     if (configured_measurand.phase) {
-                        // phase available and it makes sense here
-                        auto phase = configured_measurand.phase.value();
+                        const auto phase = configured_measurand.phase.value();
                         sample.phase.emplace(phase);
-                        if (phase == Phase::L1) {
-                            if (power_W.value().L1) {
-                                sample.value = ocpp::conversions::double_to_string((double)power_W.value().L1.value());
-                            } else {
-                                EVLOG_debug << "Power meter does not contain power_W configured measurand for phase L1";
-                            }
-                        } else if (phase == Phase::L2) {
-                            if (power_W.value().L2) {
-                                sample.value = ocpp::conversions::double_to_string((double)power_W.value().L2.value());
-                            } else {
-                                EVLOG_debug << "Power meter does not contain power_W configured measurand for phase L2";
-                            }
-                        } else if (phase == Phase::L3) {
-                            if (power_W.value().L3) {
-                                sample.value = ocpp::conversions::double_to_string((double)power_W.value().L3.value());
-                            } else {
-                                EVLOG_debug << "Power meter does not contain power_W configured measurand for phase L3";
-                            }
+                        const auto signed_power = get_power_w_for_phase(power_W.value(), phase);
+                        if (signed_power.has_value()) {
+                            sample.value = ocpp::conversions::double_to_string(
+                                utils::get_power_active_import_w(signed_power.value()));
+                        } else {
+                            EVLOG_debug << "Power meter does not contain power_W configured measurand for phase "
+                                        << conversions::phase_to_string(phase);
                         }
                     } else {
-                        // store total value
-                        sample.value = ocpp::conversions::double_to_string((double)power_W.value().total);
+                        sample.value = ocpp::conversions::double_to_string(
+                            utils::get_power_active_import_w(static_cast<double>(power_W.value().total)));
+                    }
+                } else {
+                    EVLOG_debug << "Power meter does not contain power_W configured measurand";
+                }
+                break;
+            }
+            case Measurand::Power_Active_Export: {
+                const auto power_W = power_meter.power_W;
+                // power flow to grid, Instantaneous power in Watt
+                sample.unit.emplace(UnitOfMeasure::W);
+                sample.location.emplace(Location::Outlet);
+                if (power_W) {
+                    if (configured_measurand.phase) {
+                        const auto phase = configured_measurand.phase.value();
+                        sample.phase.emplace(phase);
+                        const auto signed_power = get_power_w_for_phase(power_W.value(), phase);
+                        if (signed_power.has_value()) {
+                            sample.value = ocpp::conversions::double_to_string(
+                                utils::get_power_active_export_w(signed_power.value()));
+                        } else {
+                            EVLOG_debug << "Power meter does not contain power_W configured measurand for phase "
+                                        << conversions::phase_to_string(phase);
+                        }
+                    } else {
+                        sample.value = ocpp::conversions::double_to_string(
+                            utils::get_power_active_export_w(static_cast<double>(power_W.value().total)));
                     }
                 } else {
                     EVLOG_debug << "Power meter does not contain power_W configured measurand";
@@ -937,7 +972,6 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
             case Measurand::Energy_Active_Import_Interval:
             case Measurand::Energy_Reactive_Export_Interval:
             case Measurand::Energy_Reactive_Import_Interval:
-            case Measurand::Power_Active_Export:
             case Measurand::Power_Reactive_Export:
             case Measurand::Power_Reactive_Import:
             case Measurand::Power_Factor:
