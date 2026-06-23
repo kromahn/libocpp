@@ -51,6 +51,14 @@ double get_power_active_export_w(double signed_power_w) {
     return std::max(-signed_power_w, 0.0);
 }
 
+double get_current_import_a(double signed_current_a) {
+    return std::max(signed_current_a, 0.0);
+}
+
+double get_current_export_a(double signed_current_a) {
+    return std::max(-signed_current_a, 0.0);
+}
+
 } // namespace utils
 } // namespace v16
 } // namespace ocpp

@@ -27,6 +27,12 @@ double get_power_active_import_w(double signed_power_w);
 /// \brief Converts signed active power into OCPP 1.6 Power.Active.Export (always >= 0)
 double get_power_active_export_w(double signed_power_w);
 
+/// \brief Converts signed current into OCPP 1.6 Current.Import (always >= 0)
+double get_current_import_a(double signed_current_a);
+
+/// \brief Converts signed current into OCPP 1.6 Current.Export (always >= 0)
+double get_current_export_a(double signed_current_a);
+
 } // namespace utils
 } // namespace v16
 } // namespace ocpp

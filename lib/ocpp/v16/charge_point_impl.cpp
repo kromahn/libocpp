@@ -627,6 +627,27 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
                 }
                 return std::nullopt;
             };
+            const auto get_current_a_for_phase = [](const Current& current, const Phase phase) -> std::optional<double> {
+                if (phase == Phase::L1) {
+                    if (current.L1.has_value()) {
+                        return static_cast<double>(current.L1.value());
+                    }
+                    return std::nullopt;
+                }
+                if (phase == Phase::L2) {
+                    if (current.L2.has_value()) {
+                        return static_cast<double>(current.L2.value());
+                    }
+                    return std::nullopt;
+                }
+                if (phase == Phase::L3) {
+                    if (current.L3.has_value()) {
+                        return static_cast<double>(current.L3.value());
+                    }
+                    return std::nullopt;
+                }
+                return std::nullopt;
+            };
             switch (configured_measurand.measurand) {
             case Measurand::Energy_Active_Import_Register: {
                 const auto energy_Wh_import = power_meter.energy_Wh_import;
@@ -818,39 +839,52 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
                 sample.location.emplace(Location::Outlet);
                 if (current_A) {
                     if (configured_measurand.phase) {
-                        // phase available and it makes sense here
-                        auto phase = configured_measurand.phase.value();
+                        const auto phase = configured_measurand.phase.value();
                         sample.phase.emplace(phase);
-                        if (phase == Phase::L1) {
-                            if (current_A.value().L1) {
-                                sample.value =
-                                    ocpp::conversions::double_to_string((double)current_A.value().L1.value());
-                            } else {
-                                EVLOG_debug
-                                    << "Power meter does not contain current_A configured measurand for phase L1";
-                            }
-                        } else if (phase == Phase::L2) {
-                            if (current_A.value().L2) {
-                                sample.value =
-                                    ocpp::conversions::double_to_string((double)current_A.value().L2.value());
-                            } else {
-                                EVLOG_debug
-                                    << "Power meter does not contain current_A configured measurand for phase L2";
-                            }
-                        } else if (phase == Phase::L3) {
-                            if (current_A.value().L3) {
-                                sample.value =
-                                    ocpp::conversions::double_to_string((double)current_A.value().L3.value());
-                            } else {
-                                EVLOG_debug
-                                    << "Power meter does not contain current_A configured measurand for phase L3";
-                            }
+                        const auto signed_current = get_current_a_for_phase(current_A.value(), phase);
+                        if (signed_current.has_value()) {
+                            sample.value = ocpp::conversions::double_to_string(
+                                utils::get_current_import_a(signed_current.value()));
+                        } else {
+                            EVLOG_debug << "Power meter does not contain current_A configured measurand for phase "
+                                        << conversions::phase_to_string(phase);
                         }
                     }
                     // report DC value if set. This is a workaround for the fact that the power meter does not report
                     // AC (DC charging)
                     else if (current_A.value().DC) {
-                        sample.value = ocpp::conversions::double_to_string((double)current_A.value().DC.value());
+                        sample.value = ocpp::conversions::double_to_string(
+                            utils::get_current_import_a(static_cast<double>(current_A.value().DC.value())));
+                    }
+                } else {
+                    EVLOG_debug << "Power meter does not contain current_A configured measurand";
+                }
+
+                break;
+            }
+            case Measurand::Current_Export: {
+                const auto current_A = power_meter.current_A;
+                // current flow from EV in A
+                sample.unit.emplace(UnitOfMeasure::A);
+                sample.location.emplace(Location::Outlet);
+                if (current_A) {
+                    if (configured_measurand.phase) {
+                        const auto phase = configured_measurand.phase.value();
+                        sample.phase.emplace(phase);
+                        const auto signed_current = get_current_a_for_phase(current_A.value(), phase);
+                        if (signed_current.has_value()) {
+                            sample.value = ocpp::conversions::double_to_string(
+                                utils::get_current_export_a(signed_current.value()));
+                        } else {
+                            EVLOG_debug << "Power meter does not contain current_A configured measurand for phase "
+                                        << conversions::phase_to_string(phase);
+                        }
+                    }
+                    // report DC value if set. This is a workaround for the fact that the power meter does not report
+                    // AC (DC charging)
+                    else if (current_A.value().DC) {
+                        sample.value = ocpp::conversions::double_to_string(
+                            utils::get_current_export_a(static_cast<double>(current_A.value().DC.value())));
                     }
                 } else {
                     EVLOG_debug << "Power meter does not contain current_A configured measurand";
@@ -975,7 +1009,6 @@ std::optional<MeterValue> ChargePointImpl::get_latest_meter_value(int32_t connec
             case Measurand::Power_Reactive_Export:
             case Measurand::Power_Reactive_Import:
             case Measurand::Power_Factor:
-            case Measurand::Current_Export:
                 break;
             }
             // only add if value is set
